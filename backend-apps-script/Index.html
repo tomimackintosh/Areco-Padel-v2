@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <title><?= nombreClub ?></title>
+  <?!= include('EstilosCliente'); ?>
+</head>
+<body>
+  <div class="app-shell">
+
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-dot"></span>
+        <span class="brand-name"><?= nombreClub ?></span>
+      </div>
+      <nav class="tabs" id="mainTabs">
+        <button class="tab-btn active" data-tab="reservar">Reservar</button>
+        <button class="tab-btn" data-tab="miReserva">Mi reserva</button>
+      </nav>
+    </header>
+
+    <main class="content">
+
+      <!-- ================= VISTA: RESERVAR ================= -->
+      <section id="view-reservar" class="view active">
+
+        <div class="steps-indicator">
+          <div class="step-dot active" data-step="1">1<span>Fecha</span></div>
+          <div class="step-line"></div>
+          <div class="step-dot" data-step="2">2<span>Turno</span></div>
+          <div class="step-line"></div>
+          <div class="step-dot" data-step="3">3<span>Datos</span></div>
+          <div class="step-line"></div>
+          <div class="step-dot" data-step="4">4<span>Pago</span></div>
+        </div>
+
+        <!-- Paso 1: Fecha -->
+        <div class="card step-panel active" id="panel-1">
+          <h2>¿Qué día querés jugar?</h2>
+          <p class="muted">Elegí una fecha para ver los turnos disponibles.</p>
+          <input type="date" id="inputFecha" class="input-date">
+          <button class="btn-primary" id="btnVerDisponibilidad">Ver disponibilidad</button>
+        </div>
+
+        <!-- Paso 2: Grilla de turnos -->
+        <div class="card step-panel" id="panel-2">
+          <div class="panel-header">
+            <button class="btn-back" data-back="1">&larr;</button>
+            <div>
+              <h2>Elegí tu turno</h2>
+              <p class="muted" id="fechaSeleccionadaLabel"></p>
+            </div>
+          </div>
+          <div class="legend">
+            <span class="legend-item"><i class="dot dot-disponible"></i>Disponible</span>
+            <span class="legend-item"><i class="dot dot-ocupado"></i>Ocupado</span>
+          </div>
+          <div id="grillaTurnos" class="grilla-turnos"></div>
+        </div>
+
+        <!-- Paso 3: Datos personales -->
+        <div class="card step-panel" id="panel-3">
+          <div class="panel-header">
+            <button class="btn-back" data-back="2">&larr;</button>
+            <div>
+              <h2>Confirmá tu reserva</h2>
+              <p class="muted">Completá tus datos para finalizar.</p>
+            </div>
+          </div>
+
+          <div class="resumen-turno" id="resumenTurno"></div>
+
+          <div class="form-grid">
+            <div class="form-field">
+              <label>Nombre</label>
+              <input type="text" id="inputNombre" maxlength="60">
+            </div>
+            <div class="form-field">
+              <label>Apellido</label>
+              <input type="text" id="inputApellido" maxlength="60">
+            </div>
+            <div class="form-field">
+              <label>WhatsApp</label>
+              <input type="tel" id="inputWhatsapp" placeholder="11 2345 6789">
+            </div>
+            <div class="form-field">
+              <label>Email</label>
+              <input type="email" id="inputEmail" placeholder="nombre@email.com">
+            </div>
+            <div class="form-field full">
+              <label>Observaciones (opcional)</label>
+              <input type="text" id="inputObservaciones" maxlength="140">
+            </div>
+          </div>
+
+          <div id="formError" class="form-error"></div>
+          <button class="btn-primary btn-block" id="btnIrAPago">Continuar al pago</button>
+        </div>
+
+        <!-- Paso 4: Pago (pasarela demo) -->
+        <div class="card step-panel" id="panel-4">
+          <div class="panel-header">
+            <button class="btn-back" data-back="3">&larr;</button>
+            <div>
+              <h2>Elegí cómo pagar</h2>
+              <p class="muted">Pago simulado — sistema listo para Mercado Pago real.</p>
+            </div>
+          </div>
+
+          <div class="pago-opciones">
+            <button class="pago-opcion" id="btnPagarSeña" data-tipo="SEÑA">
+              <span class="pago-opcion-titulo">Pagar seña (<span id="pctSeña">30</span>%)</span>
+              <span class="pago-opcion-monto" id="montoSeña">$ 0</span>
+              <span class="pago-opcion-nota">Asegura el turno. Saldo se paga en el club.</span>
+            </button>
+            <button class="pago-opcion" id="btnPagarTotal" data-tipo="TOTAL">
+              <span class="pago-opcion-titulo">Pagar el total</span>
+              <span class="pago-opcion-monto" id="montoTotal">$ 0</span>
+              <span class="pago-opcion-nota">Reserva queda pagada por completo.</span>
+            </button>
+          </div>
+
+          <div id="pagoError" class="form-error"></div>
+
+          <!-- Modal simulado de pasarela -->
+          <div id="pasarelaDemo" class="pasarela-demo hidden">
+            <div class="pasarela-box">
+              <div class="pasarela-logo">💳 Pasarela de pago (DEMO)</div>
+              <p class="muted">Simulando checkout de Mercado Pago...</p>
+              <div class="pasarela-monto" id="pasarelaMonto">$ 0</div>
+              <div class="pasarela-spinner" id="pasarelaSpinner"></div>
+              <div class="pasarela-acciones" id="pasarelaAcciones">
+                <button class="btn-secondary" id="btnPasarelaCancelar">Cancelar</button>
+                <button class="btn-primary" id="btnPasarelaAprobar">Simular pago aprobado</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Paso 5: Confirmación -->
+        <div class="card step-panel" id="panel-5">
+          <div class="confirm-icon">✓</div>
+          <h2>¡Reserva confirmada!</h2>
+          <p class="muted">Te enviamos los detalles por email.</p>
+          <div class="resumen-turno" id="resumenFinal"></div>
+          <div class="codigo-copiable">
+            <span id="codigoFinalTexto">RES000</span>
+            <button class="btn-icon-copy" id="btnCopiarCodigo" title="Copiar código">📋</button>
+          </div>
+          <button class="btn-secondary btn-block" id="btnNuevaReserva">Hacer otra reserva</button>
+        </div>
+
+      </section>
+
+      <!-- ================= VISTA: MI RESERVA ================= -->
+      <section id="view-miReserva" class="view">
+        <div class="card">
+          <h2>Consultá tu reserva</h2>
+          <p class="muted">Ingresá el código de reserva y el email con el que reservaste.</p>
+          <div class="form-grid">
+            <div class="form-field">
+              <label>Código de reserva</label>
+              <input type="text" id="inputCodigoReserva" placeholder="RES001">
+            </div>
+            <div class="form-field">
+              <label>Email</label>
+              <input type="email" id="inputEmailConsulta" placeholder="nombre@email.com">
+            </div>
+          </div>
+          <div id="consultaError" class="form-error"></div>
+          <button class="btn-primary" id="btnConsultarReserva">Consultar</button>
+
+          <div id="resultadoConsulta" class="resultado-consulta"></div>
+        </div>
+      </section>
+
+    </main>
+
+    <div id="loadingOverlay" class="loading-overlay hidden">
+      <div class="spinner"></div>
+    </div>
+  </div>
+
+  <?!= include('JSCliente'); ?>
+</body>
+</html>

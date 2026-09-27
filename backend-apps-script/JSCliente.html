@@ -1,0 +1,264 @@
+<script>
+(function() {
+  var state = {
+    fecha: null,
+    slotSeleccionado: null, // { canchaId, canchaNombre, horarioId, horaInicio, horaFin, precio }
+    datosIniciales: null,
+    datosJugador: null,
+    pagoActual: null // { pagoToken, tipoPago, monto }
+  };
+
+  var overlay = document.getElementById('loadingOverlay');
+  function showLoading() { overlay.classList.remove('hidden'); }
+  function hideLoading() { overlay.classList.add('hidden'); }
+
+  function runServer(fnName, onSuccess, onError) {
+    var args = Array.prototype.slice.call(arguments, 3);
+    showLoading();
+    var call = google.script.run
+      .withSuccessHandler(function(res) { hideLoading(); onSuccess(res); })
+      .withFailureHandler(function(err) { hideLoading(); onError(err); });
+    call[fnName].apply(call, args);
+  }
+
+  /* ---------------- Tabs ---------------- */
+  document.querySelectorAll('#mainTabs .tab-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('#mainTabs .tab-btn').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      document.querySelectorAll('.view').forEach(function(v) { v.classList.remove('active'); });
+      document.getElementById('view-' + btn.dataset.tab).classList.add('active');
+    });
+  });
+
+  /* ---------------- Navegación de pasos ---------------- */
+  function irAPaso(n) {
+    document.querySelectorAll('.step-panel').forEach(function(p) { p.classList.remove('active'); });
+    document.getElementById('panel-' + n).classList.add('active');
+    document.querySelectorAll('.step-dot').forEach(function(d) {
+      d.classList.toggle('active', parseInt(d.dataset.step, 10) <= n);
+    });
+  }
+  document.querySelectorAll('[data-back]').forEach(function(btn) {
+    btn.addEventListener('click', function() { irAPaso(parseInt(btn.dataset.back, 10)); });
+  });
+
+  /* ---------------- Init: fecha mínima/máxima (NO SE MODIFICA) ---------------- */
+  runServer('obtenerDatosInicialesCliente', function(datos) {
+    state.datosIniciales = datos;
+    var input = document.getElementById('inputFecha');
+    var hoy = new Date();
+    var max = new Date();
+    max.setDate(max.getDate() + datos.anticipacionMaxDias);
+    input.min = toISODate(hoy);
+    input.max = toISODate(max);
+    input.value = toISODate(hoy);
+  }, function(err) { alert('Error cargando datos: ' + err.message); });
+
+  function toISODate(d) {
+    var m = String(d.getMonth() + 1).padStart(2, '0');
+    var day = String(d.getDate()).padStart(2, '0');
+    return d.getFullYear() + '-' + m + '-' + day;
+  }
+
+  /* ---------------- Paso 1 -> 2: Ver disponibilidad (NO SE MODIFICA) ---------------- */
+  document.getElementById('btnVerDisponibilidad').addEventListener('click', function() {
+    var fecha = document.getElementById('inputFecha').value;
+    if (!fecha) { alert('Elegí una fecha.'); return; }
+    state.fecha = fecha;
+
+    runServer('getDisponibilidad', function(data) {
+      renderGrilla(data);
+      var d = new Date(fecha + 'T00:00:00');
+      document.getElementById('fechaSeleccionadaLabel').textContent =
+        d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+      irAPaso(2);
+    }, function(err) { alert(err.message); }, fecha);
+  });
+
+  function renderGrilla(data) {
+    var cont = document.getElementById('grillaTurnos');
+    cont.innerHTML = '';
+    data.horarios.forEach(function(h) {
+      var grupo = document.createElement('div');
+      grupo.className = 'horario-grupo';
+      var titulo = document.createElement('div');
+      titulo.className = 'horario-hora';
+      titulo.textContent = h.horaInicio + ' - ' + h.horaFin;
+      grupo.appendChild(titulo);
+
+      var row = document.createElement('div');
+      row.className = 'slots-row';
+      h.canchas.forEach(function(c) {
+        var btn = document.createElement('button');
+        btn.className = 'slot-btn' + (c.disponible ? '' : ' ocupado');
+        btn.textContent = c.nombreCancha;
+        btn.disabled = !c.disponible;
+        btn.addEventListener('click', function() {
+          state.slotSeleccionado = {
+            canchaId: c.canchaId, canchaNombre: c.nombreCancha,
+            horarioId: h.horarioId, horaInicio: h.horaInicio, horaFin: h.horaFin, precio: c.precio
+          };
+          mostrarResumenYFormulario();
+        });
+        row.appendChild(btn);
+      });
+      grupo.appendChild(row);
+      cont.appendChild(grupo);
+    });
+  }
+
+  function mostrarResumenYFormulario() {
+    var s = state.slotSeleccionado;
+    var d = new Date(state.fecha + 'T00:00:00');
+    document.getElementById('resumenTurno').innerHTML =
+      fila('Fecha', d.toLocaleDateString('es-AR', { day: 'numeric', month: 'long' })) +
+      fila('Cancha', s.canchaNombre) +
+      fila('Horario', s.horaInicio + ' - ' + s.horaFin) +
+      fila('Precio', formatMoneda(s.precio), true);
+    document.getElementById('formError').textContent = '';
+    irAPaso(3);
+  }
+
+  function fila(label, valor, total) {
+    return '<div class="fila' + (total ? ' total' : '') + '"><span>' + label + '</span><span>' + valor + '</span></div>';
+  }
+  function formatMoneda(n) { return '$ ' + Number(n || 0).toLocaleString('es-AR'); }
+
+  /* ---------------- Paso 3 -> 4: Ir a pago ---------------- */
+  document.getElementById('btnIrAPago').addEventListener('click', function() {
+    var data = {
+      fecha: state.fecha,
+      horarioId: state.slotSeleccionado.horarioId,
+      canchaId: state.slotSeleccionado.canchaId,
+      nombre: document.getElementById('inputNombre').value.trim(),
+      apellido: document.getElementById('inputApellido').value.trim(),
+      whatsapp: document.getElementById('inputWhatsapp').value.trim(),
+      email: document.getElementById('inputEmail').value.trim(),
+      observaciones: document.getElementById('inputObservaciones').value.trim()
+    };
+    var errorEl = document.getElementById('formError');
+    errorEl.textContent = '';
+    if (!data.nombre || !data.apellido || !data.whatsapp || !data.email) {
+      errorEl.textContent = 'Completá todos los campos obligatorios.';
+      return;
+    }
+    state.datosJugador = data;
+
+    var precio = state.slotSeleccionado.precio;
+    var pct = (state.datosIniciales && state.datosIniciales.porcentajeSeña) || 30;
+    var montoSeña = Math.round(precio * pct / 100);
+    document.getElementById('pctSeña').textContent = pct;
+    document.getElementById('montoSeña').textContent = formatMoneda(montoSeña);
+    document.getElementById('montoTotal').textContent = formatMoneda(precio);
+    document.getElementById('pagoError').textContent = '';
+    irAPaso(4);
+  });
+
+  /* ---------------- Paso 4: Elegir tipo de pago -> iniciar pasarela demo ---------------- */
+  function iniciarPago(tipoPago) {
+    var errorEl = document.getElementById('pagoError');
+    errorEl.textContent = '';
+    runServer('iniciarPagoReserva', function(res) {
+      state.pagoActual = { pagoToken: res.pagoToken, tipoPago: res.tipoPago, monto: res.monto };
+      document.getElementById('pasarelaMonto').textContent = formatMoneda(res.monto);
+      document.getElementById('pasarelaDemo').classList.remove('hidden');
+    }, function(err) { errorEl.textContent = err.message; }, state.datosJugador, tipoPago);
+  }
+  document.getElementById('btnPagarSeña').addEventListener('click', function() { iniciarPago('SEÑA'); });
+  document.getElementById('btnPagarTotal').addEventListener('click', function() { iniciarPago('TOTAL'); });
+
+  document.getElementById('btnPasarelaCancelar').addEventListener('click', function() {
+    if (!state.pagoActual) { document.getElementById('pasarelaDemo').classList.add('hidden'); return; }
+    runServer('cancelarPagoDemo', function() {
+      document.getElementById('pasarelaDemo').classList.add('hidden');
+      state.pagoActual = null;
+    }, function() { document.getElementById('pasarelaDemo').classList.add('hidden'); }, state.pagoActual.pagoToken);
+  });
+
+  document.getElementById('btnPasarelaAprobar').addEventListener('click', function() {
+    if (!state.pagoActual) return;
+    runServer('confirmarPagoDemo', function(res) {
+      document.getElementById('pasarelaDemo').classList.add('hidden');
+      mostrarConfirmacionFinal(res.reserva);
+    }, function(err) {
+      document.getElementById('pasarelaDemo').classList.add('hidden');
+      document.getElementById('pagoError').textContent = err.message;
+    }, state.pagoActual.pagoToken);
+  });
+
+  function mostrarConfirmacionFinal(r) {
+    document.getElementById('resumenFinal').innerHTML =
+      fila('Cancha', r.cancha) +
+      fila('Horario', r.horaInicio + ' - ' + r.horaFin) +
+      fila('Pagado', formatMoneda(r.pagado)) +
+      fila('Saldo pendiente', formatMoneda(r.saldo)) +
+      fila('Estado', r.estado, true);
+    document.getElementById('codigoFinalTexto').textContent = r.reservaId;
+    irAPaso(5);
+  }
+
+  document.getElementById('btnCopiarCodigo').addEventListener('click', function() {
+    var codigo = document.getElementById('codigoFinalTexto').textContent;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(codigo);
+    }
+    var btn = this;
+    var original = btn.textContent;
+    btn.textContent = '✓';
+    setTimeout(function() { btn.textContent = original; }, 1200);
+  });
+
+  document.getElementById('btnNuevaReserva').addEventListener('click', function() {
+    state.slotSeleccionado = null;
+    state.datosJugador = null;
+    state.pagoActual = null;
+    document.getElementById('inputNombre').value = '';
+    document.getElementById('inputApellido').value = '';
+    document.getElementById('inputWhatsapp').value = '';
+    document.getElementById('inputEmail').value = '';
+    document.getElementById('inputObservaciones').value = '';
+    irAPaso(1);
+  });
+
+  /* ---------------- Vista: Mi reserva (CORREGIDA) ---------------- */
+  document.getElementById('btnConsultarReserva').addEventListener('click', function() {
+    var codigo = document.getElementById('inputCodigoReserva').value.trim();
+    var email = document.getElementById('inputEmailConsulta').value.trim();
+    var errorEl = document.getElementById('consultaError');
+    errorEl.textContent = '';
+    var resultado = document.getElementById('resultadoConsulta');
+    resultado.innerHTML = '';
+
+    if (!codigo || !email) { errorEl.textContent = 'Completá el código y el email.'; return; }
+
+    runServer('consultarReservaCliente', function(r) {
+      resultado.innerHTML =
+        '<div class="resumen-turno">' +
+        fila('Código', r.reservaId) +
+        fila('Cancha', r.cancha) +
+        fila('Fecha', r.fechaLegible) +
+        fila('Horario', r.horaInicio + ' - ' + r.horaFin) +
+        fila('Estado', '<span class="estado-badge estado-' + r.estado + '">' + r.estado + '</span>') +
+        fila('Importe total', formatMoneda(r.precio)) +
+        fila('Pagado', formatMoneda(r.pagado)) +
+        fila('Saldo', formatMoneda(r.saldo), true) +
+        '</div>' +
+        (r.puedeCancelar
+          ? '<button class="btn-secondary btn-block" id="btnCancelarReserva" style="margin-top:14px;">Cancelar reserva</button>' +
+            '<p class="muted" style="margin-top:8px;">La seña abonada no es reembolsable.</p>'
+          : '<p class="form-error" style="margin-top:14px;">' + (r.motivoNoCancelable || '') + '</p>');
+
+      if (r.puedeCancelar) {
+        document.getElementById('btnCancelarReserva').addEventListener('click', function() {
+          if (!confirm('¿Seguro que querés cancelar? La seña abonada no se reembolsa.')) return;
+          runServer('cancelarReservaCliente', function() {
+            document.getElementById('btnConsultarReserva').click();
+          }, function(err) { alert(err.message); }, codigo, email);
+        });
+      }
+    }, function(err) { errorEl.textContent = err.message; }, codigo, email);
+  });
+
+})();
+</script>

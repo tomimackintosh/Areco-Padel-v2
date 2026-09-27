@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <title><?= nombreClub ?> | Panel</title>
+  <?!= include('EstilosAdmin'); ?>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+  <!-- ================= LOGIN ================= -->
+  <div id="loginScreen" class="login-screen">
+    <div class="login-card">
+      <div class="login-brand">
+        <span class="brand-dot"></span>
+        <span><?= nombreClub ?></span>
+      </div>
+      <h1>Panel administrativo</h1>
+
+      <div id="loginStep1">
+        <p class="muted">Ingresá tu email para recibir un código de acceso.</p>
+        <input type="email" id="loginEmail" placeholder="tu@email.com" class="input-field">
+        <button class="btn-primary btn-block" id="btnSolicitarCodigo">Enviar código</button>
+      </div>
+
+      <div id="loginStep2" class="hidden">
+        <p class="muted">Ingresá el código de 6 dígitos que enviamos a tu email.</p>
+        <input type="text" id="loginCodigo" maxlength="6" placeholder="123456" class="input-field codigo-input">
+        <button class="btn-primary btn-block" id="btnVerificarCodigo">Ingresar</button>
+        <button class="btn-link" id="btnReenviarCodigo">Reenviar código</button>
+      </div>
+
+      <div id="loginError" class="form-error"></div>
+    </div>
+  </div>
+
+  <!-- ================= APP ================= -->
+  <div id="appShell" class="app-shell hidden">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <span class="brand-dot"></span>
+        <span><?= nombreClub ?></span>
+      </div>
+      <nav class="side-nav">
+        <button class="nav-item active" data-view="dashboard">Dashboard</button>
+        <button class="nav-item" data-view="reservas">Reservas</button>
+        <button class="nav-item" data-view="clientes">Clientes</button>
+        <button class="nav-item" data-view="canchas">Canchas y horarios</button>
+        <button class="nav-item admin-only" data-view="configuracion">Configuración</button>
+        <button class="nav-item admin-only" data-view="usuarios">Usuarios</button>
+      </nav>
+      <div class="sidebar-footer">
+        <div id="userBadge" class="user-badge"></div>
+        <button class="btn-link" id="btnLogout">Cerrar sesión</button>
+      </div>
+    </aside>
+
+    <main class="main-panel">
+
+      <!-- DASHBOARD -->
+      <section class="view-panel active" id="v-dashboard">
+        <div class="view-header">
+          <h1>Dashboard</h1>
+          <div class="periodo-tabs" id="periodoTabs">
+            <button class="periodo-btn active" data-periodo="HOY">Hoy</button>
+            <button class="periodo-btn" data-periodo="7D">Últimos 7 días</button>
+            <button class="periodo-btn" data-periodo="MES">Último mes</button>
+            <button class="periodo-btn" data-periodo="ANIO">Todo el año</button>
+          </div>
+        </div>
+
+        <div class="kpi-grid" id="kpiGrid"></div>
+
+        <div class="card ingresos-progreso" id="ingresosProgreso"></div>
+
+        <div class="charts-grid">
+          <div class="card chart-card"><h3>Reservas por día</h3><canvas id="chartReservasDia"></canvas></div>
+          <div class="card chart-card"><h3>Ocupación por cancha</h3><canvas id="chartOcupacionCancha"></canvas></div>
+          <div class="card chart-card"><h3>Horarios más demandados</h3><canvas id="chartHorarios"></canvas></div>
+          <div class="card chart-card"><h3>Ocupados vs disponibles</h3><canvas id="chartOcupadosDisponibles"></canvas></div>
+        </div>
+      </section>
+
+      <!-- RESERVAS -->
+      <section class="view-panel" id="v-reservas">
+        <div class="view-header">
+          <h1>Reservas</h1>
+          <div style="display:flex;gap:10px;">
+            <div class="periodo-tabs">
+              <button class="reservas-subtab active" data-subtab="calendario">Calendario</button>
+              <button class="reservas-subtab" data-subtab="listado">Listado</button>
+            </div>
+            <button class="btn-primary" id="btnNuevaReservaAdmin">+ Nueva reserva</button>
+          </div>
+        </div>
+
+        <!-- Sub-vista: Calendario diario (simple: sin filtros, solo navegación de día) -->
+        <div class="reservas-sub active" id="sub-calendario">
+          <div class="cal-mes-anio" id="calMesAnio"></div>
+          <div class="filters-bar cal-nav">
+            <button class="btn-secondary" id="btnDiaAnterior">&larr;</button>
+            <input type="date" id="calendarioFecha" class="input-field small">
+            <button class="btn-secondary" id="btnDiaSiguiente">&rarr;</button>
+            <button class="btn-secondary" id="btnHoy">Hoy</button>
+          </div>
+          <div class="legend">
+            <span class="legend-item"><i class="dot dot-disponible"></i>Disponible</span>
+            <span class="legend-item"><i class="dot dot-ocupado"></i>Reservado</span>
+          </div>
+          <div id="calendarioGrid" class="calendario-grid"></div>
+        </div>
+
+
+        <!-- Sub-vista: Listado con filtros / rango -->
+        <div class="reservas-sub" id="sub-listado">
+          <div class="filters-bar">
+            <input type="date" id="filtroFechaDesde" class="input-field small" title="Desde">
+            <input type="date" id="filtroFechaHasta" class="input-field small" title="Hasta">
+            <select id="filtroCancha" class="input-field small"><option value="">Todas las canchas</option></select>
+            <select id="filtroEstado" class="input-field small">
+              <option value="">Todos los estados</option>
+              <option value="PARCIAL">Parcial</option>
+              <option value="CONFIRMADA">Confirmada</option>
+              <option value="CANCELADA">Cancelada</option>
+            </select>
+            <button class="btn-secondary" id="btnLimpiarFiltros">Limpiar</button>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table" id="tablaReservas">
+              <thead>
+                <tr>
+                  <th>ID</th><th>Fecha</th><th>Horario</th><th>Cancha</th><th>Cliente</th>
+                  <th>Estado</th><th>Precio</th><th>Pagado</th><th>Saldo</th><th></th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- CLIENTES -->
+      <section class="view-panel" id="v-clientes">
+        <h1>Clientes</h1>
+        <input type="text" id="buscarCliente" class="input-field" placeholder="Buscar por nombre o email...">
+        <div class="table-wrap">
+          <table class="data-table" id="tablaClientes">
+            <thead><tr><th>ID</th><th>Nombre</th><th>WhatsApp</th><th>Email</th><th>Alta</th><th>Activo</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- CANCHAS Y HORARIOS -->
+      <section class="view-panel" id="v-canchas">
+        <h1>Canchas y horarios</h1>
+        <h3>Canchas</h3>
+        <div class="table-wrap">
+          <table class="data-table" id="tablaCanchas">
+            <thead><tr><th>ID</th><th>Nombre</th><th>Tipo</th><th>Precio</th><th>Activa</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <h3 style="margin-top:28px;">Horarios</h3>
+        <div class="table-wrap">
+          <table class="data-table" id="tablaHorarios">
+            <thead><tr><th>ID</th><th>Desde</th><th>Hasta</th><th>Activo</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- CONFIGURACION -->
+      <section class="view-panel" id="v-configuracion">
+        <h1>Configuración general</h1>
+        <div class="card" id="configForm"></div>
+        <button class="btn-primary" id="btnGuardarConfig" style="margin-top:16px;">Guardar cambios</button>
+      </section>
+
+      <!-- USUARIOS -->
+      <section class="view-panel" id="v-usuarios">
+        <div class="view-header">
+          <h1>Usuarios</h1>
+          <button class="btn-primary" id="btnNuevoUsuario">+ Nuevo usuario</button>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table" id="tablaUsuarios">
+            <thead><tr><th>ID</th><th>Nombre</th><th>Email</th><th>Rol</th><th>Activo</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ================= MODALES ================= -->
+  <div id="modalOverlay" class="modal-overlay hidden">
+    <div class="modal-box" id="modalBox"></div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+  <div id="loadingOverlay" class="loading-overlay hidden"><div class="spinner"></div></div>
+
+  <?!= include('JSAdmin'); ?>
+</body>
+</html>
