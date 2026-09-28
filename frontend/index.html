@@ -3,6 +3,8 @@
 <head>
   <base target="_top">
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0b0c">
   <title>Areco Padel</title>
   <style>
   :root {
@@ -207,6 +209,120 @@
     .form-grid { grid-template-columns: 1fr; }
     .step-dot span { font-size: 10px; }
   }
+
+  /* =====================================================================
+   * AJUSTES CELULAR / NOTEBOOK
+   * (Base pensada para celular; se ensancha en pantallas grandes.)
+   * ===================================================================== */
+  :root { color-scheme: dark; }
+  html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+  * { -webkit-tap-highlight-color: transparent; }
+  html, body { min-height: 100vh; min-height: 100dvh; }
+  body { font-size: 16px; line-height: 1.4; }
+  button, input { font-family: inherit; touch-action: manipulation; }
+
+  /* Campos a 16px: si son más chicos, el iPhone hace zoom automático al tocarlos */
+  .input-date, .form-field input { font-size: 16px; min-height: 52px; }
+  .input-date { -webkit-appearance: none; appearance: none; display: block; text-align: left; }
+  .form-field label { font-size: 13px; }
+
+  /* Botones cómodos para el pulgar */
+  .btn-primary, .btn-secondary { min-height: 52px; font-size: 16px; border-radius: 14px; }
+  .btn-primary:active { transform: scale(0.98); }
+  .btn-back { width: 44px; height: 44px; font-size: 18px; flex-shrink: 0; }
+
+  .card h2 { font-size: 22px; line-height: 1.2; }
+  .muted { font-size: 14.5px; }
+  .step-panel.active { animation: fadeIn .25s ease; }
+
+  .steps-indicator { margin: 4px 0 42px; }
+  .step-dot { width: 32px; height: 32px; flex-shrink: 0; }
+  .step-dot span { top: 38px; font-size: 12px; }
+  .step-line { flex: 1; max-width: 64px; }
+
+  .legend-item { font-size: 13.5px; }
+  .horario-grupo { padding: 14px; }
+  .horario-hora { font-size: 15px; margin-bottom: 10px; }
+  .grilla-turnos { max-height: none; overflow: visible; padding-right: 0; gap: 12px; }
+  .slots-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
+  .slot-btn {
+    min-width: 0; min-height: 52px; padding: 12px 10px; font-size: 15px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .slot-btn:active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+  .slot-btn.ocupado { text-decoration: line-through; }
+
+  .resumen-turno .fila { font-size: 15px; padding: 6px 0; }
+  .resumen-turno .fila.total span:last-child { font-size: 18px; }
+
+  .pago-opcion { padding: 18px; }
+  .pago-opcion-titulo { font-size: 16px; }
+  .pago-opcion-monto { font-size: 26px; }
+  .pago-opcion-nota { font-size: 13px; }
+  .pago-opcion:active { border-color: var(--accent); }
+
+  .codigo-copiable { font-size: 20px; }
+  .btn-icon-copy { font-size: 20px; padding: 6px; }
+
+  /* ---------- Celular (hasta 720px) ---------- */
+  @media (max-width: 720px) {
+    .app-shell { padding: 0 14px calc(100px + env(safe-area-inset-bottom)); }
+    .topbar { padding: calc(16px + env(safe-area-inset-top)) 4px 14px; }
+    .brand-name { font-size: 19px; }
+
+    /* Menú abajo, como una app: siempre a mano con el pulgar */
+    .tabs {
+      position: fixed; left: 12px; right: 12px; bottom: calc(10px + env(safe-area-inset-bottom));
+      z-index: 900; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 6px;
+      border-radius: 20px; background: rgba(20, 20, 22, 0.9);
+      backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+    }
+    .tab-btn { min-height: 46px; padding: 12px 8px; font-size: 15px; border-radius: 15px; }
+
+    .card { padding: 20px 16px; border-radius: 20px; }
+    .form-grid { grid-template-columns: 1fr; }
+    .btn-primary.btn-block, .btn-secondary.btn-block { width: 100%; }
+    #btnVerDisponibilidad, #btnConsultarReserva { width: 100%; }
+  }
+
+  /* ---------- Celulares chicos ---------- */
+  @media (max-width: 380px) {
+    .slots-row { grid-template-columns: 1fr 1fr; }
+    .card h2 { font-size: 20px; }
+  }
+
+  /* ---------- Notebook / escritorio (900px o más) ---------- */
+  @media (min-width: 900px) {
+    .app-shell { max-width: 900px; padding: 0 32px 64px; }
+    .topbar { padding: 32px 4px 26px; }
+    .brand-name { font-size: 22px; }
+    .tab-btn { padding: 10px 22px; font-size: 14px; }
+    .card { padding: 36px; }
+    .card h2 { font-size: 26px; }
+
+    #btnVerDisponibilidad { min-width: 260px; }
+    .input-date { max-width: 320px; }
+
+    /* Turnos en 2 columnas para aprovechar el ancho */
+    .grilla-turnos { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+
+    /* Paso 3: resumen a la izquierda, formulario a la derecha */
+    #panel-3.active {
+      display: grid; grid-template-columns: 300px 1fr; column-gap: 32px; align-items: start;
+    }
+    #panel-3 .panel-header { grid-column: 1 / -1; }
+    #panel-3 .resumen-turno { grid-column: 1; grid-row: 2 / span 3; margin-bottom: 0; position: sticky; top: 24px; }
+    #panel-3 .form-grid { grid-column: 2; grid-row: 2; }
+    #panel-3 #formError { grid-column: 2; grid-row: 3; }
+    #panel-3 #btnIrAPago { grid-column: 2; grid-row: 4; }
+
+    /* Paso 4: seña y total lado a lado */
+    .pago-opciones { flex-direction: row; }
+    .pago-opcion { flex: 1; }
+
+    .btn-primary:hover { box-shadow: 0 0 20px var(--accent-dim); transform: translateY(-1px); }
+  }
 </style>
 
 </head>
@@ -278,19 +394,19 @@
           <div class="form-grid">
             <div class="form-field">
               <label>Nombre</label>
-              <input type="text" id="inputNombre" maxlength="60">
+              <input type="text" id="inputNombre" maxlength="60" autocomplete="given-name" autocapitalize="words">
             </div>
             <div class="form-field">
               <label>Apellido</label>
-              <input type="text" id="inputApellido" maxlength="60">
+              <input type="text" id="inputApellido" maxlength="60" autocomplete="family-name" autocapitalize="words">
             </div>
             <div class="form-field">
               <label>WhatsApp</label>
-              <input type="tel" id="inputWhatsapp" placeholder="11 2345 6789">
+              <input type="tel" id="inputWhatsapp" placeholder="11 2345 6789" autocomplete="tel" inputmode="tel">
             </div>
             <div class="form-field">
               <label>Email</label>
-              <input type="email" id="inputEmail" placeholder="nombre@email.com">
+              <input type="email" id="inputEmail" placeholder="nombre@email.com" autocomplete="email" inputmode="email" autocapitalize="none" autocorrect="off">
             </div>
             <div class="form-field full">
               <label>Observaciones (opcional)</label>
@@ -365,11 +481,11 @@
           <div class="form-grid">
             <div class="form-field">
               <label>Código de reserva</label>
-              <input type="text" id="inputCodigoReserva" placeholder="RES001">
+              <input type="text" id="inputCodigoReserva" placeholder="RES001" autocapitalize="characters" autocorrect="off" autocomplete="off">
             </div>
             <div class="form-field">
               <label>Email</label>
-              <input type="email" id="inputEmailConsulta" placeholder="nombre@email.com">
+              <input type="email" id="inputEmailConsulta" placeholder="nombre@email.com" autocomplete="email" inputmode="email" autocapitalize="none" autocorrect="off">
             </div>
           </div>
           <div id="consultaError" class="form-error"></div>
@@ -450,6 +566,7 @@
     document.querySelectorAll('.step-dot').forEach(function(d) {
       d.classList.toggle('active', parseInt(d.dataset.step, 10) <= n);
     });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
   document.querySelectorAll('[data-back]').forEach(function(btn) {
     btn.addEventListener('click', function() { irAPaso(parseInt(btn.dataset.back, 10)); });
