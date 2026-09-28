@@ -435,7 +435,7 @@
    * Nueva implementación > Acceso: Cualquier usuario). Reemplaza a
    * google.script.run porque este HTML ya no vive dentro de Apps Script,
    * vive en Netlify. Usá la MISMA URL que en index.html. */
-  var APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxyGu2-uc1rLIyc4xnXRU17Oc1Nq__ZgH71HzoF1dvTvFL5lA-uIF4P8IVFv4XULvOP/exec';
+  var APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbylDM5OOd0rqp5hYm68_E9rUNGiQk8r6Cs2uOR_dt0sKBBKzMxInnANccgUyt_sRUSK2Q/exec';
 
   function gsCall(fnName) {
     var args = Array.prototype.slice.call(arguments, 1);
@@ -672,9 +672,10 @@
 
   /* ================= CANCHAS Y HORARIOS (cache para selects) ================= */
   function cargarCanchasYHorarios(cb) {
-    gsCall('listarCanchas', false).then(function(canchas) {
-      state.canchas = canchas;
-      return gsCall('listarHorarios', false).then(function(horarios) {
+    Promise.all([gsCall('listarCanchas', false), gsCall('listarHorarios', false)])
+      .then(function(res) {
+        var canchas = res[0], horarios = res[1];
+        state.canchas = canchas;
         state.horarios = horarios;
         [document.getElementById('filtroCancha')].forEach(function(sel) {
           canchas.forEach(function(c) {
@@ -684,8 +685,7 @@
           });
         });
         if (cb) cb();
-      });
-    }).catch(function(err) { toast(err.message, true); });
+      }).catch(function(err) { toast(err.message, true); });
   }
 
   function renderCanchasHorarios() {
