@@ -424,7 +424,7 @@
             <button class="btn-back" data-back="3">&larr;</button>
             <div>
               <h2>Elegí cómo pagar</h2>
-              <p class="muted">Pago simulado — sistema listo para Mercado Pago real.</p>
+              <p class="muted">Pagás de forma segura con Mercado Pago (tarjeta o dinero en cuenta).</p>
             </div>
           </div>
 
@@ -443,16 +443,15 @@
 
           <div id="pagoError" class="form-error"></div>
 
-          <!-- Modal simulado de pasarela -->
+          <!-- Aviso de redirección / verificación de pago con Mercado Pago -->
           <div id="pasarelaDemo" class="pasarela-demo hidden">
             <div class="pasarela-box">
-              <div class="pasarela-logo">💳 Pasarela de pago (DEMO)</div>
-              <p class="muted">Simulando checkout de Mercado Pago...</p>
+              <div class="pasarela-logo">💳 Mercado Pago</div>
+              <p class="muted" id="pasarelaMensaje">Te llevamos a Mercado Pago para completar el pago...</p>
               <div class="pasarela-monto" id="pasarelaMonto">$ 0</div>
               <div class="pasarela-spinner" id="pasarelaSpinner"></div>
-              <div class="pasarela-acciones" id="pasarelaAcciones">
-                <button class="btn-secondary" id="btnPasarelaCancelar">Cancelar</button>
-                <button class="btn-primary" id="btnPasarelaAprobar">Simular pago aprobado</button>
+              <div class="pasarela-acciones" id="pasarelaAcciones" style="display:none">
+                <button class="btn-primary" id="btnPasarelaCerrar">Entendido</button>
               </div>
             </div>
           </div>
@@ -509,7 +508,7 @@
    * Nueva implementación > Acceso: Cualquier usuario). Reemplaza a
    * google.script.run porque este HTML ya no vive dentro de Apps Script,
    * vive en Netlify. */
-  var APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxyGu2-uc1rLIyc4xnXRU17Oc1Nq__ZgH71HzoF1dvTvFL5lA-uIF4P8IVFv4XULvOP/exec';
+  var APPS_SCRIPT_URL = 'PEGAR_AQUI_LA_URL_DE_TU_WEB_APP_TERMINADA_EN_/exec';
 
   function gsCall(fnName) {
     var args = Array.prototype.slice.call(arguments, 1);
@@ -688,37 +687,70 @@
     irAPaso(4);
   });
 
-  /* ---------------- Paso 4: Elegir tipo de pago -> iniciar pasarela demo ---------------- */
+  /* ---------------- Paso 4: Elegir tipo de pago -> redirigir a Mercado Pago ---------------- */
+  function mostrarPasarela(mensaje, final, monto) {
+    document.getElementById('pasarelaMensaje').textContent = mensaje;
+    var montoEl = document.getElementById('pasarelaMonto');
+    montoEl.textContent = monto ? formatMoneda(monto) : '';
+    montoEl.style.display = monto ? '' : 'none';
+    document.getElementById('pasarelaSpinner').style.display = final ? 'none' : '';
+    document.getElementById('pasarelaAcciones').style.display = final ? '' : 'none';
+    document.getElementById('pasarelaDemo').classList.remove('hidden');
+  }
+  function ocultarPasarela() { document.getElementById('pasarelaDemo').classList.add('hidden'); }
+
   function iniciarPago(tipoPago) {
     var errorEl = document.getElementById('pagoError');
     errorEl.textContent = '';
     runServer('iniciarPagoReserva', function(res) {
       state.pagoActual = { pagoToken: res.pagoToken, tipoPago: res.tipoPago, monto: res.monto };
-      document.getElementById('pasarelaMonto').textContent = formatMoneda(res.monto);
-      document.getElementById('pasarelaDemo').classList.remove('hidden');
+      mostrarPasarela('Te llevamos a Mercado Pago para completar el pago...', false, res.monto);
+      window.location.href = res.urlPago;
     }, function(err) { errorEl.textContent = err.message; }, state.datosJugador, tipoPago);
   }
   document.getElementById('btnPagarSeña').addEventListener('click', function() { iniciarPago('SEÑA'); });
   document.getElementById('btnPagarTotal').addEventListener('click', function() { iniciarPago('TOTAL'); });
 
-  document.getElementById('btnPasarelaCancelar').addEventListener('click', function() {
-    if (!state.pagoActual) { document.getElementById('pasarelaDemo').classList.add('hidden'); return; }
-    runServer('cancelarPagoDemo', function() {
-      document.getElementById('pasarelaDemo').classList.add('hidden');
-      state.pagoActual = null;
-    }, function() { document.getElementById('pasarelaDemo').classList.add('hidden'); }, state.pagoActual.pagoToken);
-  });
+  document.getElementById('btnPasarelaCerrar').addEventListener('click', ocultarPasarela);
 
-  document.getElementById('btnPasarelaAprobar').addEventListener('click', function() {
-    if (!state.pagoActual) return;
-    runServer('confirmarPagoDemo', function(res) {
-      document.getElementById('pasarelaDemo').classList.add('hidden');
-      mostrarConfirmacionFinal(res.reserva);
-    }, function(err) {
-      document.getElementById('pasarelaDemo').classList.add('hidden');
-      document.getElementById('pagoError').textContent = err.message;
-    }, state.pagoActual.pagoToken);
-  });
+  /* Al volver de Mercado Pago: la URL trae ?pago=ok|pendiente|error&t=TOKEN */
+  function procesarRetornoPago() {
+    var params = new URLSearchParams(window.location.search);
+    var retorno = params.get('pago');
+    var token = params.get('t');
+    if (!retorno || !token) return;
+    history.replaceState(null, '', window.location.pathname);
+
+    if (retorno === 'error') {
+      mostrarPasarela('El pago no se completó, así que no se cobró nada ni se reservó el turno. Podés intentar de nuevo.', true);
+      return;
+    }
+    mostrarPasarela(retorno === 'pendiente'
+      ? 'Tu pago está siendo procesado. Esperá unos segundos...'
+      : 'Confirmando tu pago...', false);
+
+    var intentos = 0;
+    function reintentar(errMsg) {
+      intentos++;
+      if (intentos < 10) { setTimeout(consultar, 3000); return; }
+      mostrarPasarela(errMsg || 'Todavía no recibimos la confirmación del pago. Si se te descontó dinero, en unos minutos te llega el email con tu reserva. Si no llega, contactá al club.', true);
+    }
+    function consultar() {
+      gsCall('verificarPagoReserva', token).then(function(res) {
+        if (res.estado === 'CONFIRMADO') { ocultarPasarela(); mostrarConfirmacionFinal(res.reserva); return; }
+        if (res.estado === 'CONFLICTO') {
+          mostrarPasarela('Tu pago fue aprobado, pero ese turno ya había sido ocupado. Contactá al club para coordinar la devolución o un nuevo horario. Referencia de pago: ' + res.mpPagoId, true);
+          return;
+        }
+        if (res.estado === 'EXPIRADO') {
+          mostrarPasarela('La sesión de pago venció. Si se te descontó dinero, contactá al club con tu comprobante.', true);
+          return;
+        }
+        reintentar();
+      }).catch(function(err) { reintentar('No pudimos verificar el pago: ' + err.message); });
+    }
+    consultar();
+  }
 
   function mostrarConfirmacionFinal(r) {
     document.getElementById('resumenFinal').innerHTML =
@@ -793,6 +825,7 @@
     }, function(err) { errorEl.textContent = err.message; }, codigo, email);
   });
 
+  procesarRetornoPago();
 })();
 </script>
 
