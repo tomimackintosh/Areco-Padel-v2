@@ -5,12 +5,21 @@
  * hoja; el parámetro CONFIG.Duracion_Reserva_Minutos es sólo informativo.
  */
 
+// Canchas y horarios casi no cambian, así que se cachean unos minutos: evita
+// releer la planilla en cada apertura del panel o cambio de sección.
+var CANCHAS_HORARIOS_CACHE_SECONDS = 300;
+
 function listarCanchas(soloActivas) {
+  var cacheKey = 'CANCHAS_' + (soloActivas ? '1' : '0');
+  var cache = CacheService.getScriptCache();
+  var cached = cache.get(cacheKey);
+  if (cached) { try { return JSON.parse(cached); } catch (e) { /* sigue y relee */ } }
+
   var canchas = sheetToObjects_('CANCHAS');
   if (soloActivas) {
     canchas = canchas.filter(function(c) { return String(c.Activa).toUpperCase() === 'SI'; });
   }
-  return canchas.map(function(c) {
+  var salida = canchas.map(function(c) {
     return {
       canchaId: c.Cancha_ID,
       nombre: c.Nombre,
@@ -19,14 +28,21 @@ function listarCanchas(soloActivas) {
       activa: String(c.Activa).toUpperCase() === 'SI'
     };
   });
+  cache.put(cacheKey, JSON.stringify(salida), CANCHAS_HORARIOS_CACHE_SECONDS);
+  return salida;
 }
 
 function listarHorarios(soloActivos) {
+  var cacheKey = 'HORARIOS_' + (soloActivos ? '1' : '0');
+  var cache = CacheService.getScriptCache();
+  var cached = cache.get(cacheKey);
+  if (cached) { try { return JSON.parse(cached); } catch (e) { /* sigue y relee */ } }
+
   var horarios = sheetToObjects_('HORARIOS');
   if (soloActivos) {
     horarios = horarios.filter(function(h) { return String(h.Activo).toUpperCase() === 'SI'; });
   }
-  return horarios.map(function(h) {
+  var salida = horarios.map(function(h) {
     return {
       horarioId: h.Horario_ID,
       horaInicio: formatHora_(h.Hora_Inicio),
@@ -36,6 +52,14 @@ function listarHorarios(soloActivos) {
     };
   }).sort(function(a, b) { return new Date(a.__horaInicioRaw) - new Date(b.__horaInicioRaw); })
     .map(function(h) { delete h.__horaInicioRaw; return h; });
+  cache.put(cacheKey, JSON.stringify(salida), CANCHAS_HORARIOS_CACHE_SECONDS);
+  return salida;
+}
+
+/** Limpia el cache de canchas/horarios (se llama al editar cualquiera de las dos). */
+function limpiarCacheCanchasHorarios_() {
+  var cache = CacheService.getScriptCache();
+  cache.removeAll(['CANCHAS_0', 'CANCHAS_1', 'HORARIOS_0', 'HORARIOS_1']);
 }
 
 /* ---------------- Administración (requiere sesión) ---------------- */
@@ -56,6 +80,7 @@ function actualizarCancha(token, canchaId, cambios) {
   if (cambios.activa !== undefined) permitido.Activa = cambios.activa ? 'SI' : 'NO';
 
   updateRowFromObject_('CANCHAS', cancha.__row, permitido);
+  limpiarCacheCanchasHorarios_();
   return { ok: true };
 }
 
@@ -71,6 +96,7 @@ function crearCancha(token, data) {
     Cancha_ID: id, Nombre: nombre, Tipo: sanitizar_(data.tipo) || 'Descubierta',
     Precio: precio, Activa: 'SI'
   });
+  limpiarCacheCanchasHorarios_();
   return { ok: true, id: id };
 }
 
@@ -81,5 +107,6 @@ function actualizarHorario(token, horarioId, cambios) {
   var permitido = {};
   if (cambios.activo !== undefined) permitido.Activo = cambios.activo ? 'SI' : 'NO';
   updateRowFromObject_('HORARIOS', horario.__row, permitido);
+  limpiarCacheCanchasHorarios_();
   return { ok: true };
 }
