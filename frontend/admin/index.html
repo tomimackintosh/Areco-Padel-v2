@@ -4,6 +4,7 @@
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <link rel="icon" type="image/png" href="/favicon.png">
   <title>Areco Padel | Panel</title>
   <style>
   :root {
@@ -133,7 +134,14 @@
   .hoy-destacado .hoy-label { font-size: 11.5px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
   .hoy-destacado .hoy-valor { font-size: 22px; font-weight: 800; color: var(--accent); }
 
-  .ingresos-progreso { margin-top: 18px; }
+  .ingresos-progreso {
+    margin-top: 18px; transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+  }
+  .ingresos-progreso:hover {
+    transform: translateY(-3px);
+    border-color: rgba(204,255,0,0.35);
+    box-shadow: 0 10px 28px rgba(204,255,0,0.08);
+  }
   .ip-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px; }
   .ip-header h3 { margin: 0; font-size: 13.5px; color: var(--text-muted); font-weight: 600; }
   .ip-porc { font-size: 20px; font-weight: 800; color: var(--accent); }
@@ -160,22 +168,23 @@
   .cal-mes-anio { font-size: 13px; font-weight: 700; letter-spacing: 1px; color: var(--text-muted); margin-bottom: 10px; text-transform: uppercase; }
   .cal-nav { align-items: center; }
   .cal-nav .input-field.small { text-align: center; }
-  .calendario-grid { display: flex; flex-direction: column; gap: 10px; overflow-x: auto; margin-top: 16px; }
-  .cal-row { display: flex; align-items: stretch; gap: 6px; }
+  .calendario-grid { display: flex; flex-direction: column; gap: 26px; margin-top: 16px; }
+  .cal-row { display: flex; flex-direction: column; gap: 8px; }
   .cal-row-label {
-    flex: 0 0 110px; display: flex; align-items: center; font-size: 12.5px; font-weight: 700;
-    color: var(--text); padding: 0 8px;
+    font-size: 13px; font-weight: 700; color: var(--text); padding: 4px 2px 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
   }
   .cal-cell {
-    flex: 1 1 0; min-width: 88px; border-radius: 10px; border: 1px solid rgba(53,208,127,0.25);
-    padding: 8px 8px; cursor: pointer; font-size: 11px; transition: all .15s ease;
+    display: flex; align-items: center; gap: 14px; width: 100%;
+    border-radius: 10px; border: 1px solid rgba(53,208,127,0.25);
+    padding: 10px 14px; cursor: pointer; font-size: 12px; transition: all .15s ease;
     background: rgba(53,208,127,0.08);
   }
   .cal-cell:hover { border-color: var(--accent); }
-  .cal-cell .cal-hora { font-weight: 700; color: var(--text-muted); margin-bottom: 4px; }
+  .cal-cell .cal-hora { font-weight: 700; color: var(--text-muted); flex: 0 0 48px; }
   .cal-cell.ocupada { background: rgba(255,92,92,0.09); border-color: rgba(255,92,92,0.28); }
-  .cal-cell.ocupada .cal-cliente { color: var(--text); font-weight: 700; font-size: 11.5px; }
-  .cal-cell.ocupada .cal-pago { font-size: 10.5px; color: var(--text-muted); margin-top: 2px; }
+  .cal-cell.ocupada .cal-cliente { color: var(--text); font-weight: 700; font-size: 12.5px; flex: 1; }
+  .cal-cell.ocupada .cal-pago { font-size: 11.5px; color: var(--text-muted); flex: 0 0 auto; }
   .cal-cell.oculta { opacity: 0.25; pointer-events: none; }
 
   .toggle { position: relative; width: 38px; height: 20px; display: inline-block; }
@@ -296,6 +305,8 @@
               <button class="periodo-btn" data-periodo="7D">Últimos 7 días</button>
               <button class="periodo-btn" data-periodo="MES">Último mes</button>
               <button class="periodo-btn" data-periodo="ANIO">Todo el año</button>
+              <button class="periodo-btn" data-periodo="MAÑANA">Mañana</button>
+              <button class="periodo-btn" data-periodo="PROX_7D">Próximos 7 días</button>
             </div>
             <button class="btn-secondary btn-actualizar" id="btnActualizarDashboard" title="Traer datos actualizados">⟳ Actualizar</button>
           </div>
@@ -306,10 +317,10 @@
         <div class="card ingresos-progreso" id="ingresosProgreso"></div>
 
         <div class="charts-grid">
-          <div class="card chart-card"><h3>Reservas por día</h3><canvas id="chartReservasDia"></canvas></div>
+          <div class="card chart-card"><h3>Ocupados vs disponibles</h3><canvas id="chartOcupadosDisponibles"></canvas></div>
           <div class="card chart-card"><h3>Ocupación por cancha</h3><canvas id="chartOcupacionCancha"></canvas></div>
           <div class="card chart-card"><h3>Horarios más demandados</h3><canvas id="chartHorarios"></canvas></div>
-          <div class="card chart-card"><h3>Ocupados vs disponibles</h3><canvas id="chartOcupadosDisponibles"></canvas></div>
+          <div class="card chart-card"><h3>Reservas por día</h3><canvas id="chartReservasDia"></canvas></div>
         </div>
       </section>
 
@@ -612,12 +623,17 @@
     });
   });
 
+  var ETIQUETAS_PERIODO = {
+    HOY: 'hoy', '7D': 'últimos 7 días', MES: 'último mes', ANIO: 'todo el año',
+    'MAÑANA': 'mañana', PROX_7D: 'próximos 7 días'
+  };
+
   function cargarDashboard(periodo, forzar) {
     state.periodoActual = periodo;
     runAuth('obtenerResumenDashboard', function(d) {
       var r = d.resumen;
       document.getElementById('kpiGrid').innerHTML =
-        kpi('Reservas (' + d.periodo + ')', r.reservas) +
+        kpi('Reservas (' + (ETIQUETAS_PERIODO[d.periodo] || d.periodo) + ')', r.reservas) +
         kpi('Ocupación', r.ocupacionPorc + '%') +
         kpi('Turnos libres', r.turnosLibres) +
         kpi('Ingresos cobrados', formatMoneda(r.ingresosCobrados), true) +
