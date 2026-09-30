@@ -168,23 +168,30 @@
   .cal-mes-anio { font-size: 13px; font-weight: 700; letter-spacing: 1px; color: var(--text-muted); margin-bottom: 10px; text-transform: uppercase; }
   .cal-nav { align-items: center; }
   .cal-nav .input-field.small { text-align: center; }
-  .calendario-grid { display: flex; flex-direction: column; gap: 26px; margin-top: 16px; }
-  .cal-row { display: flex; flex-direction: column; gap: 8px; }
-  .cal-row-label {
-    font-size: 13px; font-weight: 700; color: var(--text); padding: 4px 2px 8px;
+  .calendario-grid-wrap { overflow-x: auto; margin-top: 16px; }
+  .calendario-grid { display: grid; gap: 8px; align-items: stretch; }
+  .cal-col-header {
+    font-size: 12.5px; font-weight: 700; text-align: center; color: var(--text);
+    padding: 4px 4px 10px; text-transform: uppercase; letter-spacing: .5px;
     border-bottom: 1px solid rgba(255,255,255,0.08);
   }
+  .cal-row-label {
+    font-size: 11.5px; font-weight: 700; color: var(--text-muted);
+    display: flex; align-items: center; padding: 0 6px 0 2px; white-space: nowrap;
+  }
   .cal-cell {
-    display: flex; align-items: center; gap: 14px; width: 100%;
+    display: flex; flex-direction: column; justify-content: center; gap: 3px; min-height: 58px;
     border-radius: 10px; border: 1px solid rgba(53,208,127,0.25);
-    padding: 10px 14px; cursor: pointer; font-size: 12px; transition: all .15s ease;
+    padding: 8px 10px; cursor: pointer; font-size: 11px; transition: all .15s ease;
     background: rgba(53,208,127,0.08);
   }
   .cal-cell:hover { border-color: var(--accent); }
-  .cal-cell .cal-hora { font-weight: 700; color: var(--text-muted); flex: 0 0 48px; }
   .cal-cell.ocupada { background: rgba(255,92,92,0.09); border-color: rgba(255,92,92,0.28); }
-  .cal-cell.ocupada .cal-cliente { color: var(--text); font-weight: 700; font-size: 12.5px; flex: 1; }
-  .cal-cell.ocupada .cal-pago { font-size: 11.5px; color: var(--text-muted); flex: 0 0 auto; }
+  .cal-cell.ocupada .cal-cliente {
+    color: var(--text); font-weight: 700; font-size: 11.5px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .cal-cell.ocupada .cal-pago { font-size: 10.5px; color: var(--text-muted); }
   .cal-cell.oculta { opacity: 0.25; pointer-events: none; }
 
   .toggle { position: relative; width: 38px; height: 20px; display: inline-block; }
@@ -351,7 +358,9 @@
             <span class="legend-item"><i class="dot dot-disponible"></i>Disponible</span>
             <span class="legend-item"><i class="dot dot-ocupado"></i>Reservado</span>
           </div>
-          <div id="calendarioGrid" class="calendario-grid"></div>
+          <div class="calendario-grid-wrap">
+            <div id="calendarioGrid" class="calendario-grid"></div>
+          </div>
         </div>
 
 
@@ -456,7 +465,7 @@
    * Nueva implementación > Acceso: Cualquier usuario). Reemplaza a
    * google.script.run porque este HTML ya no vive dentro de Apps Script,
    * vive en Netlify. Usá la MISMA URL que en index.html. */
-  var APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbylDM5OOd0rqp5hYm68_E9rUNGiQk8r6Cs2uOR_dt0sKBBKzMxInnANccgUyt_sRUSK2Q/exec';
+  var APPS_SCRIPT_URL = 'PEGAR_AQUI_LA_URL_DE_TU_WEB_APP_TERMINADA_EN_/exec';
 
   function gsCall(fnName) {
     var args = Array.prototype.slice.call(arguments, 1);
@@ -805,34 +814,45 @@
       if (!data) { toast('No se pudo cargar el calendario. Volvé a intentar.', true); return; }
       var grid = document.getElementById('calendarioGrid');
       grid.innerHTML = '';
-      data.canchas.forEach(function(fila) {
-        var row = document.createElement('div');
-        row.className = 'cal-row';
+      var canchas = data.canchas;
+      grid.style.gridTemplateColumns = '96px repeat(' + canchas.length + ', minmax(130px, 1fr))';
+
+      // Fila de encabezados: esquina vacía + nombre de cada cancha.
+      grid.appendChild(document.createElement('div'));
+      canchas.forEach(function(c) {
+        var h = document.createElement('div');
+        h.className = 'cal-col-header';
+        h.textContent = c.nombre;
+        grid.appendChild(h);
+      });
+
+      // Una fila por horario; dentro, una celda por cancha en ese horario.
+      var cantidadHorarios = canchas.length ? canchas[0].celdas.length : 0;
+      for (var i = 0; i < cantidadHorarios; i++) {
         var label = document.createElement('div');
         label.className = 'cal-row-label';
-        label.textContent = fila.nombre;
-        row.appendChild(label);
+        label.textContent = canchas[0].celdas[i].horaInicio + '-' + canchas[0].celdas[i].horaFin;
+        grid.appendChild(label);
 
-        fila.celdas.forEach(function(celda) {
+        canchas.forEach(function(fila) {
+          var celda = fila.celdas[i];
           var cell = document.createElement('div');
           cell.className = 'cal-cell' + (celda.reserva ? ' ocupada' : '') + (celda.filtradoOculto ? ' oculta' : '');
           if (celda.reserva) {
             var r = celda.reserva;
-            cell.innerHTML = '<div class="cal-hora">' + celda.horaInicio + '</div>' +
-              '<div class="cal-cliente">' + r.clienteNombre + '</div>' +
+            cell.innerHTML = '<div class="cal-cliente">' + r.clienteNombre + '</div>' +
               '<div class="cal-pago"><span class="estado-badge estado-' + r.estado + '">' + r.estado + '</span></div>' +
               '<div class="cal-pago">' + formatMoneda(r.pagado) + ' / ' + formatMoneda(r.precio) + '</div>';
             cell.addEventListener('click', function() { abrirModalGestionReserva(r); });
           } else {
-            cell.innerHTML = '<div class="cal-hora">' + celda.horaInicio + '</div><div class="muted" style="font-size:11px;">Disponible</div>';
+            cell.innerHTML = '<div class="muted" style="font-size:11px;">Disponible</div>';
             cell.addEventListener('click', function() {
               abrirModalNuevaReserva({ fecha: data.fecha, canchaId: fila.canchaId, horarioId: celda.horarioId });
             });
           }
-          row.appendChild(cell);
+          grid.appendChild(cell);
         });
-        grid.appendChild(row);
-      });
+      }
     }, function(err) { toast(err.message, true); }, state.calFecha, {}, forzar);
   }
 
