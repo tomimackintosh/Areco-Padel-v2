@@ -8,22 +8,32 @@
 function rangoFechasPorPeriodo_(periodo) {
   var hoy = new Date();
   var desde = new Date(hoy);
+  var hasta = new Date(hoy);
+
   if (periodo === 'HOY') {
-    // desde = hoy
+    // desde = hasta = hoy
   } else if (periodo === '7D') {
     desde.setDate(desde.getDate() - 6);
   } else if (periodo === 'MES') {
     desde.setDate(1);
-  } else { // ANIO
+  } else if (periodo === 'ANIO') {
     desde = new Date(hoy.getFullYear(), 0, 1);
+  } else if (periodo === 'MAÑANA') {
+    // Períodos "a futuro": ocupación de los próximos turnos, no de los ya jugados.
+    desde.setDate(desde.getDate() + 1);
+    hasta.setDate(hasta.getDate() + 1);
+  } else { // PROX_7D
+    hasta.setDate(hasta.getDate() + 6);
   }
+
   desde.setHours(0, 0, 0, 0);
-  return { desde: formatFecha_(desde), hasta: formatFecha_(hoy) };
+  hasta.setHours(0, 0, 0, 0);
+  return { desde: formatFecha_(desde), hasta: formatFecha_(hasta) };
 }
 
 function obtenerResumenDashboard(token, periodo, forzar) {
   requireRole_(token, ['ADMIN', 'RECEPCION']);
-  periodo = ['HOY', '7D', 'MES', 'ANIO'].indexOf(periodo) !== -1 ? periodo : 'HOY';
+  periodo = ['HOY', '7D', 'MES', 'ANIO', 'MAÑANA', 'PROX_7D'].indexOf(periodo) !== -1 ? periodo : 'HOY';
 
   var cacheKey = 'DASH_' + periodo;
   var cache = CacheService.getScriptCache();
