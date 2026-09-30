@@ -48,8 +48,7 @@ var API_FUNCTIONS = {
   obtenerDatosInicialesCliente: obtenerDatosInicialesCliente,
   getDisponibilidad: getDisponibilidad,
   iniciarPagoReserva: iniciarPagoReserva,
-  confirmarPagoDemo: confirmarPagoDemo,
-  cancelarPagoDemo: cancelarPagoDemo,
+  verificarPagoReserva: verificarPagoReserva,
   consultarReservaCliente: consultarReservaCliente,
   cancelarReservaCliente: cancelarReservaCliente,
   listarCanchas: listarCanchas,
@@ -92,6 +91,13 @@ var API_FUNCTIONS = {
  * respuesta cuando el deployment tiene acceso "Cualquier usuario".
  */
 function doPost(e) {
+  // Avisos (webhook) de Mercado Pago: llegan a la misma URL /exec con ?mp=1
+  // y tienen un formato distinto al {fn, args} de la app.
+  if (e && e.parameter && e.parameter.mp === '1') {
+    manejarWebhookMercadoPago_(e);
+    return ContentService.createTextOutput('OK');
+  }
+
   var respuesta;
   try {
     if (!e || !e.postData || !e.postData.contents) {
