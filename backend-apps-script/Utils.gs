@@ -32,6 +32,32 @@ function getSheet_(nombre) {
  * en un array de objetos { columna: valor }. Ignora filas completamente vacías
  * (columna A vacía), lo que permite hojas con filas en blanco al final (como CONFIG).
  */
+/**
+ * Cache de lectura para las pantallas "pesadas" del panel (dashboard,
+ * calendario del día, listado de clientes). Se invalida sola por tiempo
+ * (ver cada TTL) y también a mano cada vez que se crea/edita/cancela una
+ * reserva o se registra un pago, para que el admin nunca vea datos viejos
+ * después de hacer un cambio.
+ */
+var DASHBOARD_CACHE_SECONDS = 30;
+var CALENDARIO_CACHE_SECONDS = 20;
+var CLIENTES_CACHE_SECONDS = 30;
+
+/**
+ * Limpia el cache de las pantallas del panel. `fechas` es opcional: una
+ * fecha (yyyy-MM-dd) o un array de fechas cuyo calendario hay que invalidar
+ * (además del dashboard y la lista de clientes, que siempre se limpian).
+ */
+function invalidarCachePanel_(fechas) {
+  var claves = ['DASH_HOY', 'DASH_7D', 'DASH_MES', 'DASH_ANIO', 'CLIENTES_FMT', 'RESERVAS_FMT'];
+  if (fechas) {
+    (Array.isArray(fechas) ? fechas : [fechas]).forEach(function(f) {
+      if (f) claves.push('CALDIA_' + f);
+    });
+  }
+  CacheService.getScriptCache().removeAll(claves);
+}
+
 function sheetToObjects_(nombreHoja) {
   var sheet = getSheet_(nombreHoja);
   var range = sheet.getDataRange();
