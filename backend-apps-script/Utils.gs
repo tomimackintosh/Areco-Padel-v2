@@ -49,7 +49,7 @@ var CLIENTES_CACHE_SECONDS = 30;
  * (además del dashboard y la lista de clientes, que siempre se limpian).
  */
 function invalidarCachePanel_(fechas) {
-  var claves = ['DASH_HOY', 'DASH_7D', 'DASH_MES', 'DASH_ANIO', 'CLIENTES_FMT', 'RESERVAS_FMT'];
+  var claves = ['DASH_HOY', 'DASH_7D', 'DASH_MES', 'DASH_ANIO', 'DASH_MAÑANA', 'DASH_PROX_7D', 'CLIENTES_FMT', 'RESERVAS_FMT'];
   if (fechas) {
     (Array.isArray(fechas) ? fechas : [fechas]).forEach(function(f) {
       if (f) claves.push('CALDIA_' + f);
