@@ -21,9 +21,16 @@ function rangoFechasPorPeriodo_(periodo) {
   return { desde: formatFecha_(desde), hasta: formatFecha_(hoy) };
 }
 
-function obtenerResumenDashboard(token, periodo) {
+function obtenerResumenDashboard(token, periodo, forzar) {
   requireRole_(token, ['ADMIN', 'RECEPCION']);
   periodo = ['HOY', '7D', 'MES', 'ANIO'].indexOf(periodo) !== -1 ? periodo : 'HOY';
+
+  var cacheKey = 'DASH_' + periodo;
+  var cache = CacheService.getScriptCache();
+  if (!forzar) {
+    var cached = cache.get(cacheKey);
+    if (cached) { try { return JSON.parse(cached); } catch (e) { /* sigue y recalcula */ } }
+  }
 
   var todasReservas = sheetToObjects_('RESERVAS');
   var canchas = sheetToObjects_('CANCHAS');
@@ -115,5 +122,7 @@ function obtenerResumenDashboard(token, periodo) {
     }
   };
 
-  return { periodo: periodo, resumen: resumen, graficos: graficos };
+  var salida = { periodo: periodo, resumen: resumen, graficos: graficos };
+  cache.put(cacheKey, JSON.stringify(salida), DASHBOARD_CACHE_SECONDS);
+  return salida;
 }
