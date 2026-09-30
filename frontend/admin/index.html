@@ -228,8 +228,11 @@
     .sidebar-footer { border-top: none; padding-top: 0; margin-left: auto; }
     .main-panel { padding: 20px; }
   }
-</style>
 
+  .btn-actualizar { white-space: nowrap; }
+  .btn-actualizar.girando { animation: girar 0.8s linear infinite; }
+  @keyframes girar { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+</style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 </head>
 <body>
@@ -287,11 +290,14 @@
       <section class="view-panel active" id="v-dashboard">
         <div class="view-header">
           <h1>Dashboard</h1>
-          <div class="periodo-tabs" id="periodoTabs">
-            <button class="periodo-btn active" data-periodo="HOY">Hoy</button>
-            <button class="periodo-btn" data-periodo="7D">Últimos 7 días</button>
-            <button class="periodo-btn" data-periodo="MES">Último mes</button>
-            <button class="periodo-btn" data-periodo="ANIO">Todo el año</button>
+          <div style="display:flex;gap:10px;align-items:center;">
+            <div class="periodo-tabs" id="periodoTabs">
+              <button class="periodo-btn active" data-periodo="HOY">Hoy</button>
+              <button class="periodo-btn" data-periodo="7D">Últimos 7 días</button>
+              <button class="periodo-btn" data-periodo="MES">Último mes</button>
+              <button class="periodo-btn" data-periodo="ANIO">Todo el año</button>
+            </div>
+            <button class="btn-secondary btn-actualizar" id="btnActualizarDashboard" title="Traer datos actualizados">⟳ Actualizar</button>
           </div>
         </div>
 
@@ -317,6 +323,7 @@
               <button class="reservas-subtab" data-subtab="listado">Listado</button>
             </div>
             <button class="btn-primary" id="btnNuevaReservaAdmin">+ Nueva reserva</button>
+            <button class="btn-secondary btn-actualizar" id="btnActualizarReservas" title="Traer datos actualizados">⟳ Actualizar</button>
           </div>
         </div>
 
@@ -367,7 +374,10 @@
 
       <!-- CLIENTES -->
       <section class="view-panel" id="v-clientes">
-        <h1>Clientes</h1>
+        <div class="view-header">
+          <h1>Clientes</h1>
+          <button class="btn-secondary btn-actualizar" id="btnActualizarClientes" title="Traer datos actualizados">⟳ Actualizar</button>
+        </div>
         <input type="text" id="buscarCliente" class="input-field" placeholder="Buscar por nombre o email...">
         <div class="table-wrap">
           <table class="data-table" id="tablaClientes">
@@ -435,7 +445,7 @@
    * Nueva implementación > Acceso: Cualquier usuario). Reemplaza a
    * google.script.run porque este HTML ya no vive dentro de Apps Script,
    * vive en Netlify. Usá la MISMA URL que en index.html. */
-  var APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbylDM5OOd0rqp5hYm68_E9rUNGiQk8r6Cs2uOR_dt0sKBBKzMxInnANccgUyt_sRUSK2Q/exec';
+  var APPS_SCRIPT_URL = 'PEGAR_AQUI_LA_URL_DE_TU_WEB_APP_TERMINADA_EN_/exec';
 
   function gsCall(fnName) {
     var args = Array.prototype.slice.call(arguments, 1);
@@ -602,7 +612,7 @@
     });
   });
 
-  function cargarDashboard(periodo) {
+  function cargarDashboard(periodo, forzar) {
     state.periodoActual = periodo;
     runAuth('obtenerResumenDashboard', function(d) {
       var r = d.resumen;
@@ -626,7 +636,7 @@
       renderChart('chartOcupacionCancha', 'bar', d.graficos.ocupacionPorCancha.etiquetas, d.graficos.ocupacionPorCancha.valores, 'Reservas');
       renderChart('chartHorarios', 'bar', d.graficos.reservasPorHorario.etiquetas, d.graficos.reservasPorHorario.valores, 'Reservas');
       renderDonut('chartOcupadosDisponibles', d.graficos.ocupacionDonut.ocupados, d.graficos.ocupacionDonut.disponibles);
-    }, function(err) { toast(err.message, true); }, periodo);
+    }, function(err) { toast(err.message, true); }, periodo, forzar);
   }
   function kpi(label, value, accent) {
     return '<div class="kpi-card"><div class="kpi-label">' + label + '</div><div class="kpi-value' + (accent ? ' accent' : '') + '">' + value + '</div></div>';
@@ -772,7 +782,7 @@
     cargarCalendarioDia();
   }
 
-  function cargarCalendarioDia() {
+  function cargarCalendarioDia(forzar) {
     if (!document.getElementById('v-reservas').classList.contains('active')) return;
     actualizarEncabezadoMes_();
     runAuth('obtenerCalendarioDia', function(data) {
@@ -807,7 +817,7 @@
         });
         grid.appendChild(row);
       });
-    }, function(err) { toast(err.message, true); }, state.calFecha, {});
+    }, function(err) { toast(err.message, true); }, state.calFecha, {}, forzar);
   }
 
   /* ================= RESERVAS: listado (rango de fechas) ================= */
@@ -819,7 +829,7 @@
       estado: document.getElementById('filtroEstado').value || undefined
     };
   }
-  function cargarListadoReservas() {
+  function cargarListadoReservas(forzar) {
     runAuth('listarReservas', function(lista) {
       var tb = document.querySelector('#tablaReservas tbody');
       tb.innerHTML = '';
@@ -836,7 +846,7 @@
         tr.lastElementChild.appendChild(btn);
         tb.appendChild(tr);
       });
-    }, function(err) { toast(err.message, true); }, filtrosListado());
+    }, function(err) { toast(err.message, true); }, filtrosListado(), forzar);
   }
   ['filtroFechaDesde', 'filtroFechaHasta', 'filtroCancha', 'filtroEstado'].forEach(function(id) {
     document.getElementById(id).addEventListener('change', cargarListadoReservas);
@@ -1053,7 +1063,7 @@
   }
 
   /* ================= CLIENTES ================= */
-  function cargarClientes(filtro) {
+  function cargarClientes(filtro, forzar) {
     runAuth('listarClientes', function(lista) {
       var tb = document.querySelector('#tablaClientes tbody');
       tb.innerHTML = '';
@@ -1076,7 +1086,7 @@
             id, { activo: chk.checked });
         });
       });
-    }, function(err) { toast(err.message, true); }, filtro);
+    }, function(err) { toast(err.message, true); }, filtro, forzar);
   }
   document.getElementById('buscarCliente').addEventListener('input', function(e) {
     clearTimeout(window._buscarTimer);
@@ -1175,6 +1185,29 @@
       runAuth('crearUsuario', function() { toast('Usuario creado.'); cerrarModal(); cargarUsuarios(); },
         function(err) { document.getElementById('usuarioError').textContent = err.message; }, data);
     });
+  });
+
+  /* ================= BOTONES "Actualizar" (traen datos frescos, sin cache) ================= */
+  function conBotonGirando_(btn, fn) {
+    btn.classList.add('girando');
+    btn.disabled = true;
+    fn();
+    setTimeout(function() { btn.classList.remove('girando'); btn.disabled = false; }, 900);
+  }
+  document.getElementById('btnActualizarDashboard').addEventListener('click', function() {
+    var btn = this;
+    conBotonGirando_(btn, function() { return cargarDashboard(state.periodoActual, true); });
+  });
+  document.getElementById('btnActualizarReservas').addEventListener('click', function() {
+    var btn = this;
+    conBotonGirando_(btn, function() {
+      return document.getElementById('sub-listado').classList.contains('active')
+        ? cargarListadoReservas(true) : cargarCalendarioDia(true);
+    });
+  });
+  document.getElementById('btnActualizarClientes').addEventListener('click', function() {
+    var btn = this;
+    conBotonGirando_(btn, function() { return cargarClientes(document.getElementById('buscarCliente').value.trim(), true); });
   });
 
 })();
