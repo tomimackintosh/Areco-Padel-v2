@@ -140,7 +140,7 @@ function crearReservaInterna_(data, contextoPago) {
       Monto: monto,
       Medio_Pago: sanitizar_(contextoPago.medioPago || ''),
       Registrado_Por: contextoPago.registradoPor || 'CLIENTE',
-      Observaciones: contextoPago.esOnline ? 'Pago online (demo)' : ''
+      Observaciones: contextoPago.esOnline ? (contextoPago.notaPago || 'Pago online') : ''
     });
   }
 
@@ -157,6 +157,7 @@ function crearReservaInterna_(data, contextoPago) {
     nombre: data.nombre, apellido: data.apellido, email: data.email
   });
 
+  invalidarCachePanel_(data.fecha);
   return { ok: true, reserva: reservaCompleta };
 }
 
@@ -217,6 +218,7 @@ function cancelarReservaCliente(reservaId, email) {
     updateRowFromObject_('RESERVAS', r.__row, { Estado: 'CANCELADA' });
     cancelarRecordatoriosPendientes_(reservaId);
     enviarCancelacion_(r, cliente);
+    invalidarCachePanel_(formatFecha_(r.Fecha));
     return { ok: true, señaReembolsable: false };
   } finally {
     lock.releaseLock();
@@ -251,31 +253,47 @@ function enriquecerReserva_(r, canchas, horarios) {
 /**
  * Lista reservas con filtros opcionales (fecha exacta o rango, cancha, estado).
  */
-function listarReservas(token, filtros) {
+function listarReservas(token, filtros, forzar) {
   requireRole_(token, ['ADMIN', 'RECEPCION']);
   filtros = filtros || {};
-  var reservas = sheetToObjects_('RESERVAS');
+
+  var reservas = obtenerReservasFormateadas_(forzar);
+
+  if (filtros.fecha) {
+    reservas = reservas.filter(function(r) { return r.fecha === filtros.fecha; });
+  }
+  if (filtros.fechaDesde) {
+    reservas = reservas.filter(function(r) { return r.fecha >= filtros.fechaDesde; });
+  }
+  if (filtros.fechaHasta) {
+    reservas = reservas.filter(function(r) { return r.fecha <= filtros.fechaHasta; });
+  }
+  if (filtros.canchaId) {
+    reservas = reservas.filter(function(r) { return r.canchaId === filtros.canchaId; });
+  }
+  if (filtros.estado) {
+    reservas = reservas.filter(function(r) { return String(r.estado).toUpperCase() === filtros.estado.toUpperCase(); });
+  }
+
+  return reservas;
+}
+
+/** Todas las reservas, ya enriquecidas y ordenadas. Se cachea entera (sin
+ * filtros) porque los filtros de la pestaña "Reservas" se aplican después,
+ * sobre el resultado cacheado. */
+function obtenerReservasFormateadas_(forzar) {
+  var cacheKey = 'RESERVAS_FMT';
+  var cache = CacheService.getScriptCache();
+  if (!forzar) {
+    var cached = cache.get(cacheKey);
+    if (cached) { try { return JSON.parse(cached); } catch (e) { /* sigue y recalcula */ } }
+  }
+
   var canchas = sheetToObjects_('CANCHAS');
   var horarios = sheetToObjects_('HORARIOS');
   var clientes = sheetToObjects_('CLIENTES');
 
-  if (filtros.fecha) {
-    reservas = reservas.filter(function(r) { return formatFecha_(r.Fecha) === filtros.fecha; });
-  }
-  if (filtros.fechaDesde) {
-    reservas = reservas.filter(function(r) { return formatFecha_(r.Fecha) >= filtros.fechaDesde; });
-  }
-  if (filtros.fechaHasta) {
-    reservas = reservas.filter(function(r) { return formatFecha_(r.Fecha) <= filtros.fechaHasta; });
-  }
-  if (filtros.canchaId) {
-    reservas = reservas.filter(function(r) { return r.Cancha_ID === filtros.canchaId; });
-  }
-  if (filtros.estado) {
-    reservas = reservas.filter(function(r) { return String(r.Estado).toUpperCase() === filtros.estado.toUpperCase(); });
-  }
-
-  return reservas.map(function(r) {
+  var salida = sheetToObjects_('RESERVAS').map(function(r) {
     var enr = enriquecerReserva_(r, canchas, horarios);
     var cli = clientes.filter(function(c) { return c.Cliente_ID === r.Cliente_ID; })[0];
     if (cli) {
@@ -285,22 +303,60 @@ function listarReservas(token, filtros) {
     }
     return enr;
   }).sort(function(a, b) { return b.fecha.localeCompare(a.fecha); });
+
+  // RESERVAS_FMT puede pesar más que el límite de un valor de cache (100KB);
+  // si eso pasa, seguimos funcionando sin cachear en vez de romper.
+  try { cache.put(cacheKey, JSON.stringify(salida), CALENDARIO_CACHE_SECONDS); } catch (e) { /* sin cache, no pasa nada */ }
+  return salida;
 }
 
 /**
  * Vista de calendario diario para el panel: una fila por cancha, una
  * columna por horario, con la reserva (si existe) enriquecida.
  */
-function obtenerCalendarioDia(token, fecha, filtros) {
+function obtenerCalendarioDia(token, fecha, filtros, forzar) {
   requireRole_(token, ['ADMIN', 'RECEPCION']);
   if (!validarFechaFormato_(fecha)) throw new Error('Fecha invalida.');
   filtros = filtros || {};
 
+  // La parte pesada (leer CANCHAS/HORARIOS/RESERVAS/CLIENTES y armar la
+  // grilla completa del día) se cachea por fecha; los filtros de cancha y
+  // estado se aplican después sobre el resultado cacheado, así no hace
+  // falta releer la planilla por cada combinación de filtro que se pruebe.
+  var base = obtenerCalendarioDiaBase_(fecha, forzar);
+
+  var filas = base.canchas;
+  if (filtros.canchaId) filas = filas.filter(function(c) { return c.canchaId === filtros.canchaId; });
+  if (filtros.estado) {
+    filas = filas.map(function(c) {
+      return {
+        canchaId: c.canchaId, nombre: c.nombre, activa: c.activa,
+        celdas: c.celdas.map(function(celda) {
+          var oculto = !!(celda.reserva && celda.reserva.estado !== filtros.estado);
+          if (oculto === celda.filtradoOculto) return celda;
+          var copia = {};
+          for (var k in celda) copia[k] = celda[k];
+          copia.filtradoOculto = oculto;
+          return copia;
+        })
+      };
+    });
+  }
+
+  return { fecha: fecha, canchas: filas };
+}
+
+function obtenerCalendarioDiaBase_(fecha, forzar) {
+  var cacheKey = 'CALDIA_' + fecha;
+  var cache = CacheService.getScriptCache();
+  if (!forzar) {
+    var cached = cache.get(cacheKey);
+    if (cached) { try { return JSON.parse(cached); } catch (e) { /* sigue y recalcula */ } }
+  }
+
   var canchas = sheetToObjects_('CANCHAS').map(function(c) {
     return { canchaId: c.Cancha_ID, nombre: c.Nombre, precio: c.Precio, activa: String(c.Activa).toUpperCase() === 'SI' };
   });
-  if (filtros.canchaId) canchas = canchas.filter(function(c) { return c.canchaId === filtros.canchaId; });
-
   var horarios = listarHorarios(false);
   var reservasDia = sheetToObjects_('RESERVAS').filter(function(r) {
     return formatFecha_(r.Fecha) === fecha && ocupaTurno_(r.Estado);
@@ -320,14 +376,15 @@ function obtenerCalendarioDia(token, fecha, filtros) {
         enr.clienteWhatsapp = cli ? cli.WhatsApp : '';
         enr.clienteEmail = cli ? cli.Email : '';
         celda.reserva = enr;
-        celda.filtradoOculto = !!(filtros.estado && enr.estado !== filtros.estado);
       }
       return celda;
     });
     return { canchaId: c.canchaId, nombre: c.nombre, activa: c.activa, celdas: celdas };
   });
 
-  return { fecha: fecha, canchas: filas };
+  var salida = { fecha: fecha, canchas: filas };
+  cache.put(cacheKey, JSON.stringify(salida), CALENDARIO_CACHE_SECONDS);
+  return salida;
 }
 
 /**
@@ -419,6 +476,7 @@ function editarReserva(token, reservaId, cambios) {
     }
 
     updateRowFromObject_('RESERVAS', r.__row, permitido);
+    invalidarCachePanel_([formatFecha_(r.Fecha), nuevaFecha]);
     return { ok: true };
   } finally {
     lock.releaseLock();
@@ -436,5 +494,6 @@ function cancelarReservaAdmin(token, reservaId, motivo) {
   cancelarRecordatoriosPendientes_(reservaId);
   var cliente = buscarFila_('CLIENTES', 'Cliente_ID', r.Cliente_ID);
   if (cliente) enviarCancelacion_(r, cliente);
+  invalidarCachePanel_(formatFecha_(r.Fecha));
   return { ok: true };
 }
