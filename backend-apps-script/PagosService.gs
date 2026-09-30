@@ -56,12 +56,13 @@ function registrarPago(token, data) {
     var nuevoEstado = determinarEstadoPago_(nuevoSaldo, precio);
 
     updateRowFromObject_('RESERVAS', reserva.__row, {
-      'SeÃ±a': nuevoPagado,
+      'Seña': nuevoPagado,
       Saldo: nuevoSaldo,
       Estado: nuevoEstado,
       Medio_Pago: sanitizar_(data.medioPago || reserva.Medio_Pago || '')
     });
 
+    invalidarCachePanel_(formatFecha_(reserva.Fecha));
     return { ok: true, pagoId: pagoId, saldoRestante: nuevoSaldo, estado: nuevoEstado };
   } finally {
     lock.releaseLock();
