@@ -19,6 +19,7 @@ function buscarOCrearCliente_(nombre, apellido, whatsapp, email) {
     updateRowFromObject_('CLIENTES', existente.__row, {
       Nombre: nombre, Apellido: apellido, WhatsApp: whatsapp
     });
+    CacheService.getScriptCache().remove('CLIENTES_FMT');
     return existente.Cliente_ID;
   }
   var id = generarId_('CLIENTES', 'Cliente_ID', 'CLI');
@@ -26,20 +27,30 @@ function buscarOCrearCliente_(nombre, apellido, whatsapp, email) {
     Cliente_ID: id, Nombre: nombre, Apellido: apellido, WhatsApp: whatsapp,
     Email: email, Fecha_Alta: new Date(), Activo: 'SI', Observaciones: ''
   });
+  CacheService.getScriptCache().remove('CLIENTES_FMT');
   return id;
 }
 
-function listarClientes(token, filtro) {
+function listarClientes(token, filtro, forzar) {
   requireRole_(token, ['ADMIN', 'RECEPCION']);
-  var clientes = sheetToObjects_('CLIENTES');
+  var clientes = obtenerClientesFormateados_(forzar);
   if (filtro) {
     var f = filtro.toLowerCase();
     clientes = clientes.filter(function(c) {
-      return (String(c.Nombre) + ' ' + String(c.Apellido) + ' ' + String(c.Email))
-        .toLowerCase().indexOf(f) !== -1;
+      return (c.nombre + ' ' + c.apellido + ' ' + c.email).toLowerCase().indexOf(f) !== -1;
     });
   }
-  return clientes.map(function(c) {
+  return clientes;
+}
+
+function obtenerClientesFormateados_(forzar) {
+  var cacheKey = 'CLIENTES_FMT';
+  var cache = CacheService.getScriptCache();
+  if (!forzar) {
+    var cached = cache.get(cacheKey);
+    if (cached) { try { return JSON.parse(cached); } catch (e) { /* sigue y recalcula */ } }
+  }
+  var salida = sheetToObjects_('CLIENTES').map(function(c) {
     return {
       clienteId: c.Cliente_ID, nombre: c.Nombre, apellido: c.Apellido,
       whatsapp: c.WhatsApp, email: c.Email,
@@ -48,6 +59,8 @@ function listarClientes(token, filtro) {
       observaciones: c.Observaciones || ''
     };
   });
+  try { cache.put(cacheKey, JSON.stringify(salida), CLIENTES_CACHE_SECONDS); } catch (e) { /* sin cache, no pasa nada */ }
+  return salida;
 }
 
 function obtenerCliente(token, clienteId) {
@@ -77,6 +90,7 @@ function actualizarCliente(token, clienteId, cambios) {
   if (cambios.observaciones !== undefined) permitido.Observaciones = sanitizar_(cambios.observaciones);
 
   updateRowFromObject_('CLIENTES', cliente.__row, permitido);
+  CacheService.getScriptCache().remove('CLIENTES_FMT');
   return { ok: true };
 }
 
