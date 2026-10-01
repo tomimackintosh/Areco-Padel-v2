@@ -93,6 +93,7 @@
   .view-panel.active { display: block; }
   .view-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
   .view-header h1 { margin: 0; }
+  .view-header-actions { display: flex; gap: 10px; align-items: center; }
 
   .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; }
   .kpi-card {
@@ -261,6 +262,14 @@
     .sidebar.abierta .sidebar-footer { max-height: 120px; padding: 10px 14px 16px; border-top: 1px solid var(--panel-border); }
     .nav-item { padding: 13px 12px; }
     .main-panel { padding: 20px; }
+
+    /* Las barras de arriba de cada sección (filtros de período, subtabs de
+       Reservas + botones) no entran en una sola línea en pantallas chicas:
+       se dejan envolver en vez de desbordar el ancho de la página. */
+    .view-header { flex-wrap: wrap; row-gap: 10px; }
+    .view-header-actions { flex-wrap: wrap; width: 100%; }
+    .periodo-tabs { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .periodo-btn, .reservas-subtab { white-space: nowrap; flex-shrink: 0; }
   }
 
   .btn-actualizar { white-space: nowrap; }
@@ -325,7 +334,7 @@
       <section class="view-panel active" id="v-dashboard">
         <div class="view-header">
           <h1>Dashboard</h1>
-          <div style="display:flex;gap:10px;align-items:center;">
+          <div class="view-header-actions">
             <div class="periodo-tabs" id="periodoTabs">
               <button class="periodo-btn active" data-periodo="HOY">Hoy</button>
               <button class="periodo-btn" data-periodo="7D">Últimos 7 días</button>
@@ -354,7 +363,7 @@
       <section class="view-panel" id="v-reservas">
         <div class="view-header">
           <h1>Reservas</h1>
-          <div style="display:flex;gap:10px;">
+          <div class="view-header-actions">
             <div class="periodo-tabs">
               <button class="reservas-subtab active" data-subtab="calendario">Calendario</button>
               <button class="reservas-subtab" data-subtab="listado">Listado</button>
