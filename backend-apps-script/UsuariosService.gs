@@ -16,22 +16,35 @@
 
 var SESSION_DURATION_SECONDS = 8 * 60 * 60; // 8 horas
 var OTP_DURATION_SECONDS = 5 * 60; // 5 minutos
+var OTP_MAX_INTENTOS = 5;              // intentos fallidos antes de invalidar el código
+var OTP_PEDIDO_COOLDOWN_SECONDS = 45;  // espera mínima entre un pedido de código y el siguiente
 
 function solicitarCodigoAcceso(email) {
   email = sanitizar_(email).toLowerCase();
   if (!validarEmail_(email)) throw new Error('Ingresá un email válido.');
 
+  var cache = CacheService.getScriptCache();
+
+  // Enfriamiento: evita que a alguien le llenen el mail de códigos, o que se
+  // gaste de más la cuota diaria de envíos de MailApp.
+  if (cache.get('OTP_COOLDOWN_' + email)) {
+    throw new Error('Ya te enviamos un código hace muy poco. Esperá unos segundos y volvé a intentar.');
+  }
+
   var usuario = buscarFila_('USUARIOS', 'Email', email) ||
     buscarUsuarioPorEmailInsensible_(email);
 
   if (!usuario || String(usuario.Activo).toUpperCase() !== 'SI') {
-    // No revelamos si el email existe o no, por seguridad.
+    // No revelamos si el email existe o no, por seguridad, pero igual
+    // aplicamos el enfriamiento para no delatar la diferencia por timing.
+    cache.put('OTP_COOLDOWN_' + email, '1', OTP_PEDIDO_COOLDOWN_SECONDS);
     return { ok: true, mensaje: 'Si el email corresponde a un usuario activo, recibirás un código por correo.' };
   }
 
   var codigo = generarCodigo_(6);
-  var cache = CacheService.getScriptCache();
   cache.put('OTP_' + email, codigo, OTP_DURATION_SECONDS);
+  cache.remove('OTP_INTENTOS_' + email);
+  cache.put('OTP_COOLDOWN_' + email, '1', OTP_PEDIDO_COOLDOWN_SECONDS);
 
   enviarCodigoAcceso_(usuario.Email, usuario.Nombre, codigo);
 
@@ -52,10 +65,24 @@ function verificarCodigo(email, codigo) {
   var cache = CacheService.getScriptCache();
   var esperado = cache.get('OTP_' + email);
 
-  if (!esperado || esperado !== codigo) {
+  if (!esperado) {
     throw new Error('El código ingresado es incorrecto o expiró. Solicitá uno nuevo.');
   }
+
+  if (esperado !== codigo) {
+    var intentosKey = 'OTP_INTENTOS_' + email;
+    var intentos = (parseInt(cache.get(intentosKey), 10) || 0) + 1;
+    if (intentos >= OTP_MAX_INTENTOS) {
+      cache.remove('OTP_' + email);
+      cache.remove(intentosKey);
+      throw new Error('Superaste la cantidad de intentos permitidos. Solicitá un código nuevo.');
+    }
+    cache.put(intentosKey, String(intentos), OTP_DURATION_SECONDS);
+    throw new Error('El código ingresado es incorrecto. Te quedan ' + (OTP_MAX_INTENTOS - intentos) + ' intentos.');
+  }
+
   cache.remove('OTP_' + email);
+  cache.remove('OTP_INTENTOS_' + email);
 
   var usuario = buscarUsuarioPorEmailInsensible_(email);
   if (!usuario || String(usuario.Activo).toUpperCase() !== 'SI') {
