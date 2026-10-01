@@ -76,6 +76,7 @@
     display: flex; flex-direction: column; padding: 20px 14px; flex-shrink: 0;
   }
   .sidebar-brand { display: flex; align-items: center; font-weight: 700; font-size: 14.5px; padding: 6px 8px 22px; }
+  .btn-hamburguesa { display: none; }
   .side-nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
   .nav-item {
     text-align: left; background: none; border: none; color: var(--text-muted); padding: 11px 12px;
@@ -242,9 +243,23 @@
 
   @media (max-width: 900px) {
     .app-shell { flex-direction: column; }
-    .sidebar { width: 100%; flex-direction: row; overflow-x: auto; align-items: center; }
-    .side-nav { flex-direction: row; }
-    .sidebar-footer { border-top: none; padding-top: 0; margin-left: auto; }
+    .sidebar { width: 100%; flex-direction: column; align-items: stretch; padding: 0; }
+    .sidebar-brand { padding: 16px 16px; justify-content: space-between; }
+    .btn-hamburguesa {
+      display: block; background: none; border: 1px solid var(--panel-border); color: var(--text);
+      font-size: 18px; line-height: 1; padding: 6px 11px; border-radius: 8px; cursor: pointer;
+    }
+    .side-nav {
+      flex-direction: column; max-height: 0; overflow: hidden; gap: 2px; padding: 0 10px;
+      transition: max-height .22s ease;
+    }
+    .sidebar-footer {
+      border-top: none; padding: 0 14px; margin-left: 0; max-height: 0; overflow: hidden;
+      transition: max-height .22s ease;
+    }
+    .sidebar.abierta .side-nav { max-height: 420px; padding: 6px 10px 10px; }
+    .sidebar.abierta .sidebar-footer { max-height: 120px; padding: 10px 14px 16px; border-top: 1px solid var(--panel-border); }
+    .nav-item { padding: 13px 12px; }
     .main-panel { padding: 20px; }
   }
 
@@ -284,10 +299,11 @@
 
   <!-- ================= APP ================= -->
   <div id="appShell" class="app-shell hidden">
-    <aside class="sidebar">
+    <aside class="sidebar" id="sidebar">
       <div class="sidebar-brand">
         <span class="brand-dot"></span>
         <span class="brand-text">Areco Padel</span>
+        <button class="btn-hamburguesa" id="btnMenuMobile" aria-label="Abrir menú">☰</button>
       </div>
       <nav class="side-nav">
         <button class="nav-item active" data-view="dashboard">Dashboard</button>
@@ -549,6 +565,13 @@
     run('solicitarCodigoAcceso', function() { toast('Código reenviado.'); }, function(err) { toast(err.message, true); }, state.emailPendiente);
   });
 
+  document.getElementById('loginEmail').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); document.getElementById('btnSolicitarCodigo').click(); }
+  });
+  document.getElementById('loginCodigo').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); document.getElementById('btnVerificarCodigo').click(); }
+  });
+
   document.getElementById('btnVerificarCodigo').addEventListener('click', function() {
     var codigo = document.getElementById('loginCodigo').value.trim();
     var errEl = document.getElementById('loginError');
@@ -610,12 +633,17 @@
   }
 
   /* ---------------- Navegación lateral ---------------- */
+  document.getElementById('btnMenuMobile').addEventListener('click', function() {
+    document.getElementById('sidebar').classList.toggle('abierta');
+  });
+
   document.querySelectorAll('.nav-item').forEach(function(btn) {
     btn.addEventListener('click', function() {
       document.querySelectorAll('.nav-item').forEach(function(b) { b.classList.remove('active'); });
       btn.classList.add('active');
       document.querySelectorAll('.view-panel').forEach(function(v) { v.classList.remove('active'); });
       document.getElementById('v-' + btn.dataset.view).classList.add('active');
+      document.getElementById('sidebar').classList.remove('abierta');
 
       if (btn.dataset.view === 'dashboard') cargarDashboard(state.periodoActual || 'HOY');
       if (btn.dataset.view === 'reservas') cargarCalendarioDia();
