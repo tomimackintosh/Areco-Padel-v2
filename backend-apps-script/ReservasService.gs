@@ -158,6 +158,14 @@ function crearReservaInterna_(data, contextoPago) {
   });
 
   invalidarCachePanel_(data.fecha);
+
+  if (contextoPago.registradoPor === 'CLIENTE') {
+    enviarNotificacionAdmin_(
+      '🔔 Nueva reserva',
+      cancha.Nombre + ' · ' + reservaCompleta.horaInicio + ' · ' + data.nombre + ' ' + data.apellido
+    );
+  }
+
   return { ok: true, reserva: reservaCompleta };
 }
 
@@ -219,6 +227,14 @@ function cancelarReservaCliente(reservaId, email) {
     cancelarRecordatoriosPendientes_(reservaId);
     enviarCancelacion_(r, cliente);
     invalidarCachePanel_(formatFecha_(r.Fecha));
+
+    var canchaCancelada = buscarFila_('CANCHAS', 'Cancha_ID', r.Cancha_ID);
+    enviarNotificacionAdmin_(
+      '❌ Cancelación',
+      (canchaCancelada ? canchaCancelada.Nombre : r.Cancha_ID) + ' · ' + formatHora_(horario.Hora_Inicio) +
+        ' · ' + cliente.Nombre + ' ' + cliente.Apellido
+    );
+
     return { ok: true, señaReembolsable: false };
   } finally {
     lock.releaseLock();
