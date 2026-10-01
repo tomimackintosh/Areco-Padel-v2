@@ -277,6 +277,7 @@
   @keyframes girar { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
 </head>
 <body>
 
@@ -324,6 +325,7 @@
       </nav>
       <div class="sidebar-footer">
         <div id="userBadge" class="user-badge"></div>
+        <button class="btn-link" id="btnActivarPush">🔔 Activar notificaciones</button>
         <button class="btn-link" id="btnLogout">Cerrar sesión</button>
       </div>
     </aside>
@@ -595,6 +597,37 @@
 
   document.getElementById('btnLogout').addEventListener('click', function() {
     run('cerrarSesion', function() { cerrarSesionLocal(); }, function() { cerrarSesionLocal(); }, state.token);
+  });
+
+  /* ================= Notificaciones push (OneSignal) =================
+   * Pegá acá el App ID de OneSignal (Settings > Keys & IDs). No es secreto,
+   * a diferencia de la REST API Key, que va del lado de Apps Script. */
+  var ONESIGNAL_APP_ID = '5afb5c89-d25a-44c8-a3a9-298e4f9cdaaf';
+
+  window.OneSignalDeferred = window.OneSignalDeferred || [];
+  OneSignalDeferred.push(function(OneSignal) {
+    OneSignal.init({ appId: ONESIGNAL_APP_ID }).then(function() {
+      OneSignal.User.PushSubscription.addEventListener('change', function(evento) {
+        if (evento.current && evento.current.id) {
+          toast('ID de notificaciones: ' + evento.current.id + ' (copialo a Apps Script)');
+          console.log('OneSignal Subscription ID:', evento.current.id);
+        }
+      });
+    });
+  });
+
+  document.getElementById('btnActivarPush').addEventListener('click', function() {
+    if (ONESIGNAL_APP_ID.indexOf('PEGAR_AQUI') === 0) {
+      toast('Primero hay que configurar el OneSignal App ID en el código.', true);
+      return;
+    }
+    OneSignalDeferred.push(function(OneSignal) {
+      if (OneSignal.User.PushSubscription.id) {
+        toast('Ya está activado. ID: ' + OneSignal.User.PushSubscription.id);
+        return;
+      }
+      OneSignal.Notifications.requestPermission();
+    });
   });
 
   function cerrarSesionLocal() {
